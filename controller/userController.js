@@ -1,6 +1,7 @@
 import validator from "validator"
 import userModel from "../model/userModel.js";
-import bcrypt from "bcrypt"
+import bcrypt from "bcrypt";
+import jwt from "jsonwebtoken"
 
 const register = async(req , res) => {
     try {
@@ -76,12 +77,17 @@ const Login = async(req , res) => {
                 success : false
             }) 
         } 
-        let token = createToken(exist._id);
+        let token =  createToken(exist._id);
         return res.status(200).json({
             success : false,
             message : 'User Login Successfully',
-            token
-        });      
+            user : {
+                name : exist.name,
+                email : exist.email,
+                token : token
+            }
+            
+        });     
 
 
     } catch(err) {
@@ -93,4 +99,9 @@ const Login = async(req , res) => {
         
     }
 }
-export {register}
+
+const createToken = (id) => {
+    return jwt.sign({id}, process.env.JWT_SECRET)
+}
+
+export {register , Login}
