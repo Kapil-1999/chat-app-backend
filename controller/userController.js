@@ -3,6 +3,7 @@ import ResponseService from "../sevices/httpStatus.js";
 import validator from "validator";
 import bcrypt from 'bcrypt'
 import { generateToken } from "../utils/utils.js";
+import cloudinary from "../utils/cloudinary.js";
 
 
 const register = async (req, res) => {
@@ -74,4 +75,42 @@ const Login = async (req, res) => {
         return ResponseService.error(res, error.message)
     }
 }
-export { register, Login }
+
+const checkAuth = (req, res) => {
+    return ResponseService.success(res, {user : req.user})
+}
+
+
+const updateProfile = async (req, res) => {
+    try {
+        const { bio, fullName } = req.body || {};
+        const userId = req.user.id;
+
+        let updatedUser;
+
+        if (!req.file) {
+            updatedUser = await userModal.findByIdAndUpdate(
+                userId,
+                { bio, fullName },
+                { new: true }
+            ).select("-password");
+        } else {
+            const upload = await cloudinary.uploader.upload(req.file.path);
+            updatedUser = await userModal.findByIdAndUpdate(
+                userId,
+                { profilePic: upload.secure_url, bio, fullName },
+                { new: true }
+            ).select("-password");
+        }
+
+        return ResponseService.success(res, { user: updatedUser });
+
+    } catch (error) {
+        console.error(error);
+        return ResponseService.error(res, error.message);
+    }
+};
+
+
+
+export { register, Login , updateProfile , checkAuth }
