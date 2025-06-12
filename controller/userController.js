@@ -76,7 +76,7 @@ const Login = async (req, res) => {
     }
 }
 
-const checkAuth = (req, res) => {
+const checkAuth = (req, res) => {    
     return ResponseService.success(res, {user : req.user})
 }
 
