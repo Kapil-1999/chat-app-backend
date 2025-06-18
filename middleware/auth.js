@@ -18,9 +18,7 @@ const Auth = async (req, res, next) => {
         const user = await userModal.findById(jwt_verify.id).select("-password");
         if (!user) {
             return ResponseService.notFound(res, 'User not found');
-        }
-        console.log(user);
-        
+        }        
         req.user = user;
         next();
 

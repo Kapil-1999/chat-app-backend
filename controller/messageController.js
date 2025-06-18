@@ -28,28 +28,47 @@ const getUsersForSidebar = async (req, res) => {
 };
 
 //getAll messages for selected user
-
 const getMessage = async (req, res) => {
     try {
         const { id: selectedUserId } = req.params;
         const myId = req.user.id;
-        const message = await messageModal.find({
+
+        const messages = await messageModal.find({
             $or: [
                 { senderId: myId, receiverId: selectedUserId },
                 { senderId: selectedUserId, receiverId: myId }
             ]
         });
 
-        await messageModal.updateMany({ senderId: selectedUserId, receiverId: myId }, { seen: true });
-        return ResponseService.success(res, message)
+        const users = await userModal.find({
+            _id: { $in: [myId, selectedUserId] }
+        }).select('profilePic');
 
+        const userImageMap = {};
+        users.forEach(user => {
+            userImageMap[user._id.toString()] = user.profilePic;
+        });
+
+        const updatedMessages = messages.map(msg => {
+            return {
+                ...msg.toObject(),
+                senderImage: userImageMap[msg.senderId.toString()] || '',
+                receiverImage: userImageMap[msg.receiverId.toString()] || ''
+            };
+        });
+
+        await messageModal.updateMany(
+            { senderId: selectedUserId, receiverId: myId },
+            { seen: true }
+        );
+
+        return ResponseService.success(res, updatedMessages);
     } catch (error) {
         console.log(error.message);
-        ResponseService.error(res, error.message)
+        ResponseService.error(res, error.message);
     }
-}
+};
 
-//api to mark message as seen using message id
 const markMessageAsSeen = async (req, res) => {
     try {
         const { id } = req.params;
@@ -63,14 +82,18 @@ const markMessageAsSeen = async (req, res) => {
 
 const sendMessage = async (req, res) => {
     try {
-        const { text, image } = req.body;
+        const { text } = req.body
         const receiverId = req.params.id;
         const senderId = req.user.id;
+
         let imageUrl;
-        if (image) {
-            const uploadRespinse = await cloudinary.uploader.upload(image);
-            imageUrl = uploadRespinse.secure_url;
+        if (req.file) {
+            const uploadResponse = await cloudinary.uploader.upload(req.file.path, {
+                folder: 'message_images'
+            });
+            imageUrl = uploadResponse.secure_url;
         }
+
         const newMessage = await messageModal.create({
             senderId,
             receiverId,
@@ -78,17 +101,21 @@ const sendMessage = async (req, res) => {
             image: imageUrl
         });
 
-        //emit to new message to the receiver's socket
+        const sender = await userModal.findById(senderId).select('profilePic');
+        const messageWithSenderImage = {
+            ...newMessage.toObject(),
+            senderImage: sender?.profilePic || '',
+        };
         const receiverSocketId = userSocketMap[receiverId];
         if (receiverSocketId) {
-            io.to(receiverSocketId).emit("newMessage" , newMessage)
+            io.to(receiverSocketId).emit("newMessage", messageWithSenderImage);
         }
-        return ResponseService.success(res, newMessage)
+
+        return ResponseService.success(res, messageWithSenderImage);
 
     } catch (error) {
         console.log(error.message);
-        ResponseService.error(error.message)
-
+        ResponseService.error(res, error.message);
     }
 }
 
